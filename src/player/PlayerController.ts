@@ -36,6 +36,11 @@ export class PlayerController {
   private keys: { [code: string]: boolean } = {};
   public targetRotationY: number = 0;
 
+  // Rock Hiding Mechanic
+  public isHidingInsideRock: boolean = false;
+  public nearbyRockPos: Vector3 | null = null;
+  public onToggleHide?: (isHiding: boolean) => void;
+
   // Callbacks
   public onJump?: () => void;
   public onInteract?: () => void;
@@ -55,12 +60,25 @@ export class PlayerController {
 
       // Trigger jump on space key down
       if ((code === 'Space' || key === ' ') && !this.keys['Space']) {
-        this.triggerJump();
+        if (this.isHidingInsideRock) {
+          this.exitRock();
+        } else {
+          this.triggerJump();
+        }
       }
 
       // Trigger interact on E
       if ((code === 'KeyE' || key === 'e') && !this.keys['KeyE']) {
         if (this.onInteract) this.onInteract();
+      }
+
+      // Trigger Rock Hide / Unhide on H
+      if ((code === 'KeyH' || key === 'h') && !this.keys['KeyH']) {
+        if (this.isHidingInsideRock) {
+          this.exitRock();
+        } else if (this.nearbyRockPos) {
+          this.enterRock(this.nearbyRockPos);
+        }
       }
 
       this.keys[code] = true;
@@ -77,8 +95,24 @@ export class PlayerController {
     });
   }
 
+  public enterRock(rockPos: Vector3): void {
+    this.isHidingInsideRock = true;
+    this.character.root.position.x = rockPos.x;
+    this.character.root.position.z = rockPos.z;
+    this.character.root.position.y = 0.2;
+    this.character.bodyMesh.visibility = 0.25;
+    if (this.onToggleHide) this.onToggleHide(true);
+  }
+
+  public exitRock(): void {
+    this.isHidingInsideRock = false;
+    this.character.root.position.y = 0;
+    this.character.bodyMesh.visibility = 1.0;
+    if (this.onToggleHide) this.onToggleHide(false);
+  }
+
   public triggerJump(): void {
-    if (this.isGrounded) {
+    if (this.isGrounded && !this.isHidingInsideRock) {
       this.verticalVelocity = this.jumpStrength;
       this.isGrounded = false;
       this.character.isJumping = true;
@@ -96,8 +130,8 @@ export class PlayerController {
   }
 
   public takeDamage(damage: number, attackerPos: Vector3): boolean {
-    if (this.invulnerableTimer > 0) {
-      return false; // Immune during i-frames
+    if (this.invulnerableTimer > 0 || this.isHidingInsideRock) {
+      return false; // Immune during i-frames or while hiding inside rock!
     }
 
     this.health = Math.max(0, this.health - damage);
@@ -131,6 +165,8 @@ export class PlayerController {
     this.isGrounded = true;
     this.isMoving = false;
     this.isStationary = true;
+    this.isHidingInsideRock = false;
+    this.nearbyRockPos = null;
     this.character.bodyMesh.visibility = 1.0;
   }
 
@@ -167,9 +203,14 @@ export class PlayerController {
     this.character.isSprinting = isSprinting;
     const currentSpeed = isSprinting ? this.sprintSpeed : this.baseSpeed;
     const isMoving = forwardInput !== 0 || sideInput !== 0;
+    if (isMoving && this.isHidingInsideRock) {
+      this.exitRock();
+    }
     this.isMoving = isMoving;
     this.isStationary = !isMoving;
     this.character.isMoving = isMoving;
+
+    let moveDirection = Vector3.Zero();
 
     if (isMoving) {
       const inputLen = Math.hypot(sideInput, forwardInput);
@@ -185,14 +226,21 @@ export class PlayerController {
       }
 
       const camRight = Vector3.Cross(Vector3.Up(), camForward).normalize();
-      const moveDirection = camForward.scale(normForward).add(camRight.scale(normSide)).normalize();
+      moveDirection = camForward.scale(normForward).add(camRight.scale(normSide)).normalize();
 
       const displacement = moveDirection.scale(currentSpeed * deltaSeconds);
       this.character.root.position.addInPlace(displacement);
 
       this.targetRotationY = Math.atan2(moveDirection.x, moveDirection.z);
-      this.character.root.rotation.y = this.targetRotationY;
     }
+
+    // Smooth rotational damping (Shortest-arc angle lerping)
+    this.character.root.rotation.y = this.lerpAngle(
+      this.character.root.rotation.y,
+      this.targetRotationY,
+      14.0,
+      deltaSeconds
+    );
 
     // 3. Apply Knockback Decay
     if (this.knockbackVelocity.lengthSquared() > 0.01) {
@@ -201,7 +249,7 @@ export class PlayerController {
     }
 
     // Clamp inside arena bounds
-    const arenaLimit = 18.5;
+    const arenaLimit = 35.0;
     this.character.root.position.x = Math.max(-arenaLimit, Math.min(arenaLimit, this.character.root.position.x));
     this.character.root.position.z = Math.max(-arenaLimit, Math.min(arenaLimit, this.character.root.position.z));
 
@@ -224,8 +272,15 @@ export class PlayerController {
     // 6. Smooth camera tracking
     const currentTarget = this.camera.target;
     const playerPos = this.character.root.position;
-    currentTarget.x += (playerPos.x - currentTarget.x) * 0.15;
-    currentTarget.y += (playerPos.y + 1.2 - currentTarget.y) * 0.15;
-    currentTarget.z += (playerPos.z - currentTarget.z) * 0.15;
+    currentTarget.x += (playerPos.x - currentTarget.x) * (1 - Math.exp(-12 * deltaSeconds));
+    currentTarget.y += (playerPos.y + 1.2 - currentTarget.y) * (1 - Math.exp(-12 * deltaSeconds));
+    currentTarget.z += (playerPos.z - currentTarget.z) * (1 - Math.exp(-12 * deltaSeconds));
+  }
+
+  private lerpAngle(current: number, target: number, rate: number, dt: number): number {
+    let diff = (target - current) % (Math.PI * 2);
+    if (diff < -Math.PI) diff += Math.PI * 2;
+    if (diff > Math.PI) diff -= Math.PI * 2;
+    return current + diff * Math.min(1.0, rate * dt);
   }
 }

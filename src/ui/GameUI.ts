@@ -58,6 +58,10 @@ export class GameUI {
     this.damageFlashOverlay = document.getElementById('damageFlash')!;
     this.pickupPrompt = document.getElementById('pickupPrompt')!;
 
+    this.rockHidePrompt = document.getElementById('rockHidePrompt');
+    this.rockPromptMain = document.getElementById('rockPromptMain');
+    this.rockPromptSub = document.getElementById('rockPromptSub');
+
     // Difficulty buttons
     const diffButtons = document.querySelectorAll<HTMLButtonElement>('.diff-btn');
     diffButtons.forEach((btn) => {
@@ -83,6 +87,10 @@ export class GameUI {
     }
   }
 
+  private rockHidePrompt: HTMLElement | null = null;
+  private rockPromptMain: HTMLElement | null = null;
+  private rockPromptSub: HTMLElement | null = null;
+
   public triggerDamageFlash(): void {
     if (this.damageFlashOverlay) {
       this.damageFlashOverlay.classList.remove('flash-active');
@@ -98,6 +106,24 @@ export class GameUI {
       } else {
         this.pickupPrompt.classList.add('hidden');
       }
+    }
+  }
+
+  public setRockHidePrompt(visible: boolean, isHiding: boolean): void {
+    if (!this.rockHidePrompt) return;
+    if (visible) {
+      this.rockHidePrompt.classList.remove('hidden');
+      if (this.rockPromptMain && this.rockPromptSub) {
+        if (isHiding) {
+          this.rockPromptMain.innerHTML = 'PRESS <kbd>H</kbd> TO EXIT';
+          this.rockPromptSub.textContent = 'Safe Inside Rock';
+        } else {
+          this.rockPromptMain.innerHTML = 'PRESS <kbd>H</kbd> TO HIDE';
+          this.rockPromptSub.textContent = 'Inside Jungle Stone';
+        }
+      }
+    } else {
+      this.rockHidePrompt.classList.add('hidden');
     }
   }
 
@@ -160,10 +186,13 @@ export class GameUI {
     isPlayerStationary: boolean,
     canPickupBanana: boolean,
     distToEscape?: number,
-    isPortalAppeared?: boolean
+    isPortalAppeared?: boolean,
+    canHideInRock: boolean = false,
+    isHiding: boolean = false
   ): void {
-    // 1. Update Pickup Prompt
+    // 1. Update Pickup & Rock Prompts
     this.setPickupPromptVisible(canPickupBanana && state === GameState.PLAYING);
+    this.setRockHidePrompt(canHideInRock || isHiding, isHiding);
 
     // 2. Update Health Bar & Hearts
     const healthPct = Math.max(0, Math.min(100, (health / maxHealth) * 100));
@@ -199,7 +228,11 @@ export class GameUI {
 
     // 5. Update Header Goal Badge (Non-blocking, top bar)
     if (this.headerGoalBadge && this.headerGoalText) {
-      if (state === GameState.BANANA_HELD) {
+      if (isHiding) {
+        this.headerGoalIcon.textContent = '🪨';
+        this.headerGoalText.textContent = 'HIDDEN IN ROCK! Enemies searching jungle... (Press [H] to Exit)';
+        this.headerGoalBadge.className = 'header-goal-badge pulse-blue';
+      } else if (state === GameState.BANANA_HELD) {
         const distStr = distToEscape !== undefined ? ` (${Math.round(distToEscape)}m)` : '';
         if (isPortalAppeared) {
           this.headerGoalIcon.textContent = '🟢';
@@ -220,7 +253,7 @@ export class GameUI {
         this.headerGoalBadge.className = isPlayerStationary ? 'header-goal-badge pulse-red' : 'header-goal-badge pulse-orange';
       } else if (isPlayerInOuterZone) {
         this.headerGoalIcon.textContent = '🐟';
-        this.headerGoalText.textContent = 'Outer Zone: Spectators Throwing Fish! Dodge!';
+        this.headerGoalText.textContent = 'Outer Zone: Enemy Monkeys Throwing Fish! Dodge!';
         this.headerGoalBadge.className = 'header-goal-badge pulse-blue';
       } else {
         this.headerGoalIcon.textContent = '🎯';

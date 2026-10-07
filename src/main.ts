@@ -21,6 +21,7 @@ import { GameUI } from './ui/GameUI.ts';
 import { EscapeZone } from './world/EscapeZone.ts';
 import { BombManager } from './systems/BombManager.ts';
 import { DifficultyMode, DIFFICULTY_CONFIGS } from './game/GameConfig.ts';
+import { TreeSnakeSystem } from './world/TreeSnakeSystem.ts';
 
 export class GameApp {
   private canvas: HTMLCanvasElement;
@@ -33,6 +34,7 @@ export class GameApp {
   public particles!: ParticleSystemManager;
   public ui!: GameUI;
   public bombManager!: BombManager;
+  public snakeSystem!: TreeSnakeSystem;
 
   // Game Entities & State
   public gameState: GameState = GameState.INTRO;
@@ -122,20 +124,26 @@ export class GameApp {
     camera.attachControl(this.canvas, true);
     camera.inputs.removeByType('ArcRotateCameraKeyboardMoveInput');
     camera.lowerRadiusLimit = 5;
-    camera.upperRadiusLimit = 30;
+    camera.upperRadiusLimit = 45;
     camera.upperBetaLimit = Math.PI / 2.05;
     camera.wheelPrecision = 30;
 
+    // --- ATMOSPHERE & FOG (Lush tropical mist) ---
+    scene.clearColor = new Color4(0.04, 0.12, 0.08, 1.0);
+    scene.fogMode = Scene.FOGMODE_EXP2;
+    scene.fogDensity = 0.007;
+    scene.fogColor = new Color3(0.06, 0.15, 0.09);
+
     // --- LIGHTING ---
     const hemiLight = new HemisphericLight('hemiLight', new Vector3(0, 1, 0), scene);
-    hemiLight.intensity = 0.7;
-    hemiLight.diffuse = new Color3(0.95, 0.98, 1.0);
-    hemiLight.groundColor = new Color3(0.18, 0.35, 0.16);
+    hemiLight.intensity = 0.75;
+    hemiLight.diffuse = new Color3(0.92, 0.98, 0.90);
+    hemiLight.groundColor = new Color3(0.12, 0.28, 0.14);
 
-    const sunLight = new DirectionalLight('sunLight', new Vector3(-0.6, -1.2, -0.6).normalize(), scene);
+    const sunLight = new DirectionalLight('sunLight', new Vector3(-0.5, -1.2, -0.5).normalize(), scene);
     sunLight.position = new Vector3(25, 45, 25);
-    sunLight.intensity = 0.9;
-    sunLight.diffuse = new Color3(1.0, 0.95, 0.82);
+    sunLight.intensity = 0.95;
+    sunLight.diffuse = new Color3(1.0, 0.94, 0.78);
 
     this.shadowGenerator = new ShadowGenerator(1024, sunLight);
     this.shadowGenerator.useBlurExponentialShadowMap = true;
@@ -153,15 +161,16 @@ export class GameApp {
     // --- 4. GOLDEN BANANA ---
     this.banana = new Banana(scene, new Vector3(0, 1.2, 0), this.shadowGenerator);
 
-    // --- 5. PLAYER MONKEY ---
+    // --- 5. PLAYER MONKEY (Pink Hero with Green Spectacles) ---
     this.player = new MonkeyCharacter(
       'playerMonkey',
       scene,
       {
         name: 'player',
-        bodyColor: new Color3(0.55, 0.28, 0.12),
-        bellyColor: new Color3(0.96, 0.78, 0.52),
+        bodyColor: new Color3(0.95, 0.35, 0.65),
+        bellyColor: new Color3(1.0, 0.82, 0.90),
         scale: 1.0,
+        hasGreenGlasses: true, // Clue: Green Spectacles
       },
       this.shadowGenerator
     );
@@ -187,48 +196,62 @@ export class GameApp {
       this.particles.createJumpDust(this.player.root.position);
     };
 
-    // --- 6. AI RIVAL MONKEYS ---
-    // Rival 1: Blue Baboon (Aggressive Guard)
+    // --- 6. AI RIVAL MONKEYS (With Colleague Clues) ---
+    // Rival 1: Yellow Monkey (Short & Compact Scout)
     const enemy1 = new MonkeyCharacter(
       'aiRival1',
       scene,
       {
         name: 'enemy1',
-        bodyColor: new Color3(0.25, 0.35, 0.5),
-        bellyColor: new Color3(0.78, 0.85, 0.92),
-        scale: 0.95,
+        bodyColor: new Color3(0.96, 0.82, 0.15),
+        bellyColor: new Color3(1.0, 0.95, 0.62),
+        scale: 0.72, // Clue: Distinctly Short
       },
       this.shadowGenerator
     );
     this.enemies.push(new EnemyAI(enemy1, new Vector3(-11, 0, 8), 'AGGRESSIVE'));
 
-    // Rival 2: Orange Baboon (Pedestal Defender)
+    // Rival 2: Red Monkey (Tall & Slim Defender with Navy Shirt & Golden Earring)
     const enemy2 = new MonkeyCharacter(
       'aiRival2',
       scene,
       {
         name: 'enemy2',
-        bodyColor: new Color3(0.75, 0.35, 0.12),
-        bellyColor: new Color3(0.98, 0.85, 0.55),
-        scale: 1.05,
+        bodyColor: new Color3(0.92, 0.22, 0.18),
+        bellyColor: new Color3(1.0, 0.68, 0.62),
+        scale: 1.35, // Clue: Distinctly Tall
+        isSlim: true, // Clue: Slender & Slim Build
+        hasEarring: true, // Clue: Earring
+        hasShirt: true, // Clue: Fitted Navy Shirt
+        shirtColor: new Color3(0.12, 0.20, 0.35),
       },
       this.shadowGenerator
     );
     this.enemies.push(new EnemyAI(enemy2, new Vector3(8, 0, 6), 'DEFENDER'));
 
-    // Rival 3: Dark Chimp (Greedy Banana Snatcher)
+    // Rival 3: Purple Monkey (Greedy Hunter with Laptop Bag)
     const enemy3 = new MonkeyCharacter(
       'aiRival3',
       scene,
       {
         name: 'enemy3',
-        bodyColor: new Color3(0.3, 0.2, 0.15),
-        bellyColor: new Color3(0.85, 0.65, 0.45),
-        scale: 1.0,
+        bodyColor: new Color3(0.58, 0.22, 0.85),
+        bellyColor: new Color3(0.88, 0.72, 0.98),
+        scale: 1.05,
+        hasLaptopBag: true, // Clue: Laptop Bag
       },
       this.shadowGenerator
     );
     this.enemies.push(new EnemyAI(enemy3, new Vector3(-6, 0, 12), 'GREEDY'));
+
+    // --- 7. TREE SNAKE SYSTEM (Predatory Vipers hiding on canopy trees) ---
+    this.snakeSystem = new TreeSnakeSystem(
+      this.arena.treePositions,
+      scene,
+      this.audio,
+      this.particles,
+      this.shadowGenerator
+    );
 
     // --- GAME TICK OBSERVABLE ---
     scene.onBeforeRenderObservable.add(() => {
@@ -294,8 +317,35 @@ export class GameApp {
     const canPickupBanana = distToBanana <= 2.6 && !this.banana.isHeld && !isPlayerHolding;
     this.banana.isPlayerInRange = canPickupBanana;
 
+    // 3.5. Rock Hiding Detection (Available when carrying banana near jungle stones)
+    let nearbyRockPos: Vector3 | null = null;
+    if (isPlayerHolding) {
+      for (const rock of this.arena.rockPositions) {
+        if (Vector3.Distance(playerPos, rock) <= 2.4) {
+          nearbyRockPos = rock;
+          break;
+        }
+      }
+    }
+    this.playerController.nearbyRockPos = nearbyRockPos;
+    const isHiding = this.playerController.isHidingInsideRock;
+    const canHideInRock = nearbyRockPos !== null && isPlayerHolding;
+
     // Update Arena Rings
     this.arena.update(deltaSeconds, isPlayerInOuterZone, isPlayerInInnerZone);
+
+    // 3.8. Update Canopy Tree Snakes (strike when pink monkey gets close to trees)
+    this.snakeSystem.update(
+      deltaSeconds,
+      playerPos,
+      isHiding,
+      (snakePos: Vector3) => {
+        const hit = this.playerController.takeDamage(28, snakePos);
+        if (hit && this.playerController.health <= 0) {
+          this.handlePlayerDefeated();
+        }
+      }
+    );
 
     // 4. Update AI Rivals & Combat / Lifeline Checks
     // NOTE: Monkeys ONLY pursue/attack when player enters the Inner Circle or holds the banana!
@@ -309,7 +359,8 @@ export class GameApp {
         isPlayerHolding,
         isPlayerInInnerZone,
         playerPos,
-        isStationary
+        isStationary,
+        isHiding
       );
 
       if (result.attackTriggered) {
@@ -327,8 +378,8 @@ export class GameApp {
       }
     }
 
-    // 5. Check Moving Escape Zone Trigger (when carrying banana)
-    if (isPlayerHolding) {
+    // 5. Check Moving Escape Zone Trigger (when carrying banana and NOT hiding in rock)
+    if (isPlayerHolding && !this.playerController.isHidingInsideRock) {
       if (this.escapeZone.isInside(playerPos)) {
         this.handlePlayerEscaped();
       }
@@ -351,7 +402,9 @@ export class GameApp {
       isStationary,
       canPickupBanana,
       distToEscape,
-      this.escapeZone.isPhaseAppeared
+      this.escapeZone.isPhaseAppeared,
+      canHideInRock,
+      isHiding
     );
   }
 
@@ -407,10 +460,11 @@ export class GameApp {
     this.player.isJumping = false;
     this.playerController.reset();
 
-    // Reset Banana, Escape Zone, and Bombardment
+    // Reset Banana, Escape Zone, Bombardment, and Tree Snakes
     this.banana.reset();
     this.escapeZone.reset();
     this.bombManager.stopBombardment();
+    this.snakeSystem.reset();
 
     // Reset Enemies
     for (const enemy of this.enemies) {

@@ -188,15 +188,15 @@ export class BombManager {
     let targetZ: number;
 
     if (Math.random() < 0.65) {
-      targetX = playerPos.x + (Math.random() * 10 - 5);
-      targetZ = playerPos.z + (Math.random() * 10 - 5);
+      targetX = playerPos.x + (Math.random() * 12 - 6);
+      targetZ = playerPos.z + (Math.random() * 12 - 6);
     } else {
-      targetX = Math.random() * 32 - 16;
-      targetZ = Math.random() * 32 - 16;
+      targetX = Math.random() * 60 - 30;
+      targetZ = Math.random() * 60 - 30;
     }
 
-    targetX = Math.max(-17.5, Math.min(17.5, targetX));
-    targetZ = Math.max(-17.5, Math.min(17.5, targetZ));
+    targetX = Math.max(-33.0, Math.min(33.0, targetX));
+    targetZ = Math.max(-33.0, Math.min(33.0, targetZ));
     const targetPos = new Vector3(targetX, 0, targetZ);
 
     const id = Date.now() + Math.random();

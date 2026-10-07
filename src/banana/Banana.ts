@@ -34,42 +34,99 @@ export class Banana {
   }
 
   private buildBanana(shadowGenerator?: ShadowGenerator): void {
+    // 1. Golden Peel Material
     this.bananaMat = new StandardMaterial('bananaMat', this.scene);
-    this.bananaMat.diffuseColor = new Color3(1.0, 0.85, 0.0);
-    this.bananaMat.emissiveColor = new Color3(0.45, 0.35, 0.02);
-    this.bananaMat.specularColor = new Color3(0.9, 0.8, 0.2);
+    this.bananaMat.diffuseColor = new Color3(1.0, 0.88, 0.05); // Ripe golden yellow
+    this.bananaMat.emissiveColor = new Color3(0.42, 0.32, 0.02); // Warm golden glow
+    this.bananaMat.specularColor = new Color3(1.0, 0.95, 0.4);
+    this.bananaMat.specularPower = 32;
+
+    // 2. Stem & Tip Materials
+    const stemMat = new StandardMaterial('bananaStemMat', this.scene);
+    stemMat.diffuseColor = new Color3(0.28, 0.32, 0.12); // Slightly greenish-brown woody stem
+    stemMat.specularColor = new Color3(0.1, 0.1, 0.1);
 
     const tipMat = new StandardMaterial('bananaTipMat', this.scene);
-    tipMat.diffuseColor = new Color3(0.2, 0.12, 0.05);
+    tipMat.diffuseColor = new Color3(0.15, 0.1, 0.05); // Dark bottom nub
+    tipMat.specularColor = new Color3(0.05, 0.05, 0.05);
 
-    this.mesh = MeshBuilder.CreateTorus(
+    // 3. Construct Curved Banana Body with 6-faceted Simian Peel
+    const numPoints = 24;
+    const arcRadius = 1.1;
+    const arcAngle = Math.PI * 0.65; // ~118 degrees natural crescent curve
+    const points: Vector3[] = [];
+
+    for (let i = 0; i <= numPoints; i++) {
+      const t = i / numPoints; // 0 (stem end) to 1 (flower tip end)
+      const angle = -arcAngle / 2 + t * arcAngle;
+      // Natural crescent arch
+      const x = Math.sin(angle) * arcRadius;
+      const y = (1 - Math.cos(angle)) * arcRadius * 0.85;
+      points.push(new Vector3(x, y, 0));
+    }
+
+    const radiusFunction = (index: number) => {
+      const t = index / numPoints;
+      // Thick, luscious body in center, tapering to ends
+      const profile = Math.sin(t * Math.PI);
+      return 0.045 + 0.145 * Math.pow(profile, 0.65);
+    };
+
+    this.mesh = MeshBuilder.CreateTube(
       'bananaBody',
-      { diameter: 0.9, thickness: 0.28, tessellation: 24 },
+      {
+        path: points,
+        radiusFunction,
+        tessellation: 6, // 6 faceted sides just like real banana peels
+        cap: Mesh.CAP_ALL,
+        sideOrientation: Mesh.DOUBLESIDE,
+      },
       this.scene
     );
-    this.mesh.scaling = new Vector3(1.0, 0.5, 0.4);
-    this.mesh.rotation.x = Math.PI / 2.5;
-    this.mesh.rotation.z = Math.PI / 4;
     this.mesh.material = this.bananaMat;
     this.mesh.parent = this.root;
+    // Rotate to rest aesthetically on pedestal
+    this.mesh.rotation.z = Math.PI / 12;
+    this.mesh.rotation.x = Math.PI / 8;
 
-    const stem = MeshBuilder.CreateCylinder(
+    // 4. Realistic Curved Woody Stem at top
+    const stemStart = points[0];
+    const stemPath = [
+      stemStart,
+      stemStart.add(new Vector3(-0.08, 0.09, 0)),
+      stemStart.add(new Vector3(-0.14, 0.18, 0.03)),
+    ];
+    const stem = MeshBuilder.CreateTube(
       'bananaStem',
-      { diameter: 0.1, height: 0.2, tessellation: 8 },
+      {
+        path: stemPath,
+        radius: 0.038,
+        tessellation: 6,
+        cap: Mesh.CAP_ALL,
+      },
       this.scene
     );
-    stem.position = new Vector3(0.38, 0.22, 0);
-    stem.rotation.z = -0.4;
-    stem.material = tipMat;
+    stem.material = stemMat;
     stem.parent = this.mesh;
 
-    // Glowing interaction halo ring around banana
+    // 5. Dark Bottom Nub
+    const nub = MeshBuilder.CreateSphere(
+      'bananaBottomNub',
+      { diameterX: 0.08, diameterY: 0.06, diameterZ: 0.08, segments: 6 },
+      this.scene
+    );
+    nub.position = points[points.length - 1].add(new Vector3(0.02, 0.01, 0));
+    nub.material = tipMat;
+    nub.parent = this.mesh;
+
+    // 6. Glowing Interaction Halo Ring around banana
     this.haloRing = MeshBuilder.CreateTorus(
       'bananaHalo',
-      { diameter: 1.6, thickness: 0.06, tessellation: 32 },
+      { diameter: 1.9, thickness: 0.05, tessellation: 36 },
       this.scene
     );
     this.haloRing.parent = this.root;
+    this.haloRing.position.y = 0.25;
     this.haloMat = new StandardMaterial('bananaHaloMat', this.scene);
     this.haloMat.diffuseColor = new Color3(1.0, 0.9, 0.2);
     this.haloMat.emissiveColor = new Color3(0.8, 0.6, 0.0);
@@ -77,6 +134,7 @@ export class Banana {
 
     if (shadowGenerator) {
       shadowGenerator.addShadowCaster(this.mesh);
+      shadowGenerator.addShadowCaster(stem);
     }
   }
 

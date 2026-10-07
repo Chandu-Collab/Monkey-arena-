@@ -45,7 +45,25 @@
               <strong>Escape Home:</strong> Safe home blinks every 2s! Dodge sky-falling fish into ponds and reach it!
             </div>
           </div>
+          <div class="intro-rule-item">
+            <span class="rule-bullet yellow">🐍</span>
+            <div class="rule-desc">
+              <strong>Tree Vipers:</strong> Snakes hide on jungle trees and strike when you get close! Hide inside rocks with <kbd>H</kbd>!
+            </div>
+          </div>
         </div>
+
+        <!-- WHO'S WHO COLLEAGUE GUESSING CLUES -->
+        <div class="intro-clues-box">
+          <div class="clues-header">🕵️ GUESS THE COLLEAGUE:</div>
+          <div class="clues-grid">
+            <div class="clue-tag pink">👓 <strong>Pink</strong>: Dark Green Spectacles</div>
+            <div class="clue-tag red">👔 <strong>Red</strong>: Tall, Slim + Navy Shirt & Earring</div>
+            <div class="clue-tag purple">💼 <strong>Purple</strong>: Laptop Bag</div>
+            <div class="clue-tag yellow">⚡ <strong>Yellow</strong>: Short & Fast</div>
+          </div>
+        </div>
+
         <div class="intro-footer-row">
           <button id="introStartBtn" class="intro-start-btn">
             START MISSION 🍌 (<span id="introTimerText">5s</span>)
@@ -62,6 +80,15 @@
         <div class="prompt-text">
           <span class="prompt-main">PRESS <kbd>E</kbd> TO SNATCH</span>
           <span class="prompt-sub">Golden Banana</span>
+        </div>
+      </div>
+
+      <!-- INTERACTIVE ROCK HIDE PROMPT (Near jungle stones) -->
+      <div id="rockHidePrompt" class="pickup-prompt rock-prompt hidden">
+        <span class="prompt-icon">🪨</span>
+        <div class="prompt-text">
+          <span id="rockPromptMain" class="prompt-main">PRESS <kbd>H</kbd> TO HIDE</span>
+          <span id="rockPromptSub" class="prompt-sub">Inside Jungle Stone</span>
         </div>
       </div>
 
@@ -134,7 +161,8 @@
               <span class="key-badge">D</span> Right | 
               <span class="key-badge">SPACE</span> Jump | 
               <span class="key-badge">SHIFT</span> Sprint | 
-              <span class="key-badge">E</span> Grab
+              <span class="key-badge">E</span> Grab | 
+              <span class="key-badge">H</span> Hide in Rock
             </p>
           </div>
         </footer>

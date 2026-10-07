@@ -6,6 +6,7 @@ export enum AIState {
   DEFEND_PEDESTAL = 'DEFEND_PEDESTAL',
   SEEK_BANANA = 'SEEK_BANANA',
   CHASE_PLAYER = 'CHASE_PLAYER',
+  SEARCH_JUNGLE = 'SEARCH_JUNGLE',
 }
 
 export type AIPersonality = 'AGGRESSIVE' | 'DEFENDER' | 'GREEDY';
@@ -37,29 +38,30 @@ export class EnemyAI {
     this.personality = personality;
 
     if (personality === 'AGGRESSIVE') {
-      this.baseSpeed = 5.2;
-      this.chaseSpeed = 8.6;
-    } else if (personality === 'DEFENDER') {
-      this.baseSpeed = 4.6;
-      this.chaseSpeed = 8.2;
-    } else {
       this.baseSpeed = 4.8;
-      this.chaseSpeed = 8.4;
+      this.chaseSpeed = 7.0;
+    } else if (personality === 'DEFENDER') {
+      this.baseSpeed = 4.2;
+      this.chaseSpeed = 6.6;
+    } else {
+      this.baseSpeed = 4.5;
+      this.chaseSpeed = 6.8;
     }
 
     this.pickNewWanderTarget();
   }
 
   public setDifficultySpeeds(base: number, chase: number): void {
+    const adjustedChase = chase * 0.82; // Maintain increased distance / breathing room
     if (this.personality === 'AGGRESSIVE') {
-      this.baseSpeed = base + 0.4;
-      this.chaseSpeed = chase + 0.3;
+      this.baseSpeed = base + 0.3;
+      this.chaseSpeed = adjustedChase + 0.3;
     } else if (this.personality === 'DEFENDER') {
       this.baseSpeed = base - 0.2;
-      this.chaseSpeed = chase - 0.3;
+      this.chaseSpeed = adjustedChase - 0.3;
     } else {
       this.baseSpeed = base;
-      this.chaseSpeed = chase;
+      this.chaseSpeed = adjustedChase;
     }
   }
 
@@ -72,23 +74,33 @@ export class EnemyAI {
     this.pickNewWanderTarget();
   }
 
-  private pickNewWanderTarget(): void {
-    if (this.personality === 'DEFENDER') {
-      // Guard circular perimeter around the golden banana (radius 2.8 - 6.2)
+  private pickNewWanderTarget(isFullJungleSearch: boolean = false): void {
+    if (isFullJungleSearch) {
+      // Roam full jungle arena searching for the hidden monkey
       const angle = Math.random() * Math.PI * 2;
-      const radius = 2.8 + Math.random() * 3.5;
-      this.targetPoint = new Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
-      this.wanderTimer = 1.8 + Math.random() * 2.0;
-    } else {
-      // Roam arena
-      const angle = Math.random() * Math.PI * 2;
-      const distance = 4 + Math.random() * 12;
+      const distance = 8 + Math.random() * 22;
       this.targetPoint = new Vector3(
         Math.cos(angle) * distance,
         0,
         Math.sin(angle) * distance
       );
-      this.wanderTimer = 2.5 + Math.random() * 3.0;
+      this.wanderTimer = 2.0 + Math.random() * 2.5;
+    } else if (this.personality === 'DEFENDER') {
+      // Continuously patrol and circle around the golden banana pedestal (radius 3.5 - 7.8)
+      const angle = Math.random() * Math.PI * 2;
+      const radius = 3.5 + Math.random() * 4.3;
+      this.targetPoint = new Vector3(Math.cos(angle) * radius, 0, Math.sin(angle) * radius);
+      this.wanderTimer = 2.0 + Math.random() * 2.0;
+    } else {
+      // Roam across open arena
+      const angle = Math.random() * Math.PI * 2;
+      const distance = 6 + Math.random() * 22;
+      this.targetPoint = new Vector3(
+        Math.cos(angle) * distance,
+        0,
+        Math.sin(angle) * distance
+      );
+      this.wanderTimer = 3.0 + Math.random() * 3.0;
     }
   }
 
@@ -96,9 +108,10 @@ export class EnemyAI {
     deltaSeconds: number,
     bananaPos: Vector3,
     bananaIsHeldByPlayer: boolean,
-    isPlayerInDangerZone: boolean,
+    isPlayerInInnerDangerZone: boolean,
     playerPos: Vector3,
-    isPlayerStationary: boolean
+    isPlayerStationary: boolean,
+    isPlayerHiding: boolean = false
   ): AIUpdateResult {
     let attackTriggered = false;
     this.wanderTimer -= deltaSeconds;
@@ -109,75 +122,98 @@ export class EnemyAI {
     let target = this.targetPoint;
     let currentSpeed = this.baseSpeed;
 
-    // Determine if enemy should actively chase the player
-    // 1. Player holds the banana
-    // 2. OR Player has entered the guarded Danger Zone around the banana
-    const shouldChase = bananaIsHeldByPlayer || isPlayerInDangerZone;
-
-    if (shouldChase) {
-      this.state = AIState.CHASE_PLAYER;
-      this.character.isAlerted = true;
-      target = playerPos;
-      currentSpeed = this.chaseSpeed;
-
-      // Check attack: ONLY hits if player is stationary / standing still at one position!
-      const distToPlayer = Vector3.Distance(this.character.root.position, playerPos);
-      if (distToPlayer <= this.tackleRadius && isPlayerStationary && this.attackCooldown <= 0) {
-        attackTriggered = true;
-        this.attackCooldown = 1.0; // 1 second cooldown between hits
-      }
-    } else {
-      // Neutral / Patrolling State
+    // 1. If player is hiding inside a rock:
+    // Enemies cannot see the player and actively search the full jungle!
+    if (isPlayerHiding) {
+      this.state = AIState.SEARCH_JUNGLE;
       this.character.isAlerted = false;
+      currentSpeed = this.baseSpeed * 1.15;
 
-      if (this.personality === 'DEFENDER') {
-        this.state = AIState.DEFEND_PEDESTAL;
-        const distToBanana = Vector3.Distance(this.character.root.position, bananaPos);
-        if (distToBanana > 7) {
-          target = bananaPos;
-        } else if (this.wanderTimer <= 0) {
-          this.pickNewWanderTarget();
+      if (this.wanderTimer <= 0 || Vector3.Distance(this.character.root.position, this.targetPoint) <= 1.0) {
+        this.pickNewWanderTarget(true);
+      }
+      target = this.targetPoint;
+    } else {
+      // 2. Active Chase check (inner danger zone or escaping with banana)
+      const shouldChase = bananaIsHeldByPlayer || isPlayerInInnerDangerZone;
+
+      if (shouldChase) {
+        this.state = AIState.CHASE_PLAYER;
+        this.character.isAlerted = true;
+        target = playerPos;
+        currentSpeed = this.chaseSpeed;
+
+        // Check attack: ONLY hits if player is stationary / standing still at one position!
+        const distToPlayer = Vector3.Distance(this.character.root.position, playerPos);
+        if (distToPlayer <= this.tackleRadius && isPlayerStationary && this.attackCooldown <= 0) {
+          attackTriggered = true;
+          this.attackCooldown = 1.0; // 1 second cooldown between hits
         }
       } else {
-        const distToBanana = Vector3.Distance(this.character.root.position, bananaPos);
-        if (distToBanana < 8.5) {
-          this.state = AIState.SEEK_BANANA;
-          target = bananaPos;
-        } else {
-          this.state = AIState.WANDER;
-          if (this.wanderTimer <= 0) {
+        // Continuous Patrolling / Roaming State
+        this.character.isAlerted = false;
+
+        if (this.personality === 'DEFENDER') {
+          this.state = AIState.DEFEND_PEDESTAL;
+          const distToBanana = Vector3.Distance(this.character.root.position, bananaPos);
+          if (distToBanana > 10.5) {
+            target = bananaPos;
+          } else if (this.wanderTimer <= 0 || Vector3.Distance(this.character.root.position, this.targetPoint) <= 1.0) {
             this.pickNewWanderTarget();
+          }
+        } else {
+          const distToBanana = Vector3.Distance(this.character.root.position, bananaPos);
+          if (distToBanana < 9.5 && Math.random() < 0.3) {
+            this.state = AIState.SEEK_BANANA;
+            target = bananaPos;
+          } else {
+            this.state = AIState.WANDER;
+            if (this.wanderTimer <= 0 || Vector3.Distance(this.character.root.position, this.targetPoint) <= 1.0) {
+              this.pickNewWanderTarget();
+            }
           }
         }
       }
     }
 
-    // Apply movement
+    // Apply continuous movement
     const currentPos = this.character.root.position;
     const diff = target.subtract(currentPos);
     diff.y = 0;
     const distance = diff.length();
 
-    if (distance > 0.45) {
+    if (distance > 0.4) {
       diff.normalize();
       const move = diff.scale(currentSpeed * deltaSeconds);
       this.character.root.position.addInPlace(move);
 
-      // Arena boundary limits
-      const limit = 18.5;
+      // Arena boundary limits (35.0m)
+      const limit = 35.0;
       this.character.root.position.x = Math.max(-limit, Math.min(limit, this.character.root.position.x));
       this.character.root.position.z = Math.max(-limit, Math.min(limit, this.character.root.position.z));
 
-      this.character.root.rotation.y = Math.atan2(diff.x, diff.z);
+      const targetAngle = Math.atan2(diff.x, diff.z);
+      this.character.root.rotation.y = this.lerpAngle(
+        this.character.root.rotation.y,
+        targetAngle,
+        10.0,
+        deltaSeconds
+      );
       this.character.isMoving = true;
     } else {
-      this.character.isMoving = false;
-      if (this.state === AIState.WANDER || this.state === AIState.DEFEND_PEDESTAL) {
-        this.pickNewWanderTarget();
-      }
+      // Arrived at waypoint -> immediately pick next waypoint and keep moving without stopping!
+      this.pickNewWanderTarget(this.state === AIState.SEARCH_JUNGLE);
+      this.character.isMoving = true;
     }
 
     this.character.updateAnimation(deltaSeconds);
     return { attackTriggered, damageAmount: 34 };
+  }
+
+  private lerpAngle(current: number, target: number, rate: number, dt: number): number {
+    let diff = (target - current) % (Math.PI * 2);
+    if (diff < -Math.PI) diff += Math.PI * 2;
+    if (diff > Math.PI) diff -= Math.PI * 2;
+    return current + diff * Math.min(1.0, rate * dt);
   }
 }

@@ -127,6 +127,38 @@ export class AudioSystem {
     this.playWaterSplash();
   }
 
+  public playSnakeHiss(): void {
+    if (this.isMuted) return;
+    const ctx = this.ensureContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const bufferSize = ctx.sampleRate * 0.35;
+    const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = noiseBuffer;
+
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.setValueAtTime(3200, now);
+    filter.frequency.exponentialRampToValueAtTime(1800, now + 0.32);
+
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.38, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.34);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 0.35);
+  }
+
   public playGrabBanana(): void {
     if (this.isMuted) return;
     const ctx = this.ensureContext();

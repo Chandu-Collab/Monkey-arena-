@@ -16,14 +16,12 @@ export class EscapeZone {
   public isActive: boolean = false;
   public radius: number = 3.2;
 
-  // Waypoints for dynamic patrolling around arena
+  // Waypoints for dynamic patrolling around open jungle clearings (kept far away from all jungle rocks)
   private waypoints: Vector3[] = [
-    new Vector3(0, 0, -16),
-    new Vector3(-13, 0, -10),
-    new Vector3(-14, 0, 10),
-    new Vector3(0, 0, 15),
-    new Vector3(14, 0, 9),
-    new Vector3(13, 0, -11),
+    new Vector3(0, 0, -26),
+    new Vector3(-26, 0, -2),
+    new Vector3(-2, 0, 26),
+    new Vector3(26, 0, -3),
   ];
   private currentWaypointIndex: number = 0;
   public speed: number = 4.8;
@@ -78,6 +76,9 @@ export class EscapeZone {
     ringMat.diffuseColor = new Color3(0.4, 1.0, 0.6);
     ringMat.emissiveColor = new Color3(0.3, 0.9, 0.45);
     this.outerPulseRing.material = ringMat;
+
+    // Initially completely hidden until golden banana is snatched!
+    this.applyVisibility(0.0);
   }
 
   public setSpeed(newSpeed: number): void {
@@ -97,7 +98,7 @@ export class EscapeZone {
     this.blinkTimer = 0;
     this.currentWaypointIndex = 0;
     this.root.position = this.waypoints[0].clone();
-    this.applyVisibility(1.0);
+    this.applyVisibility(0.0);
   }
 
   public getPosition(): Vector3 {
@@ -111,7 +112,8 @@ export class EscapeZone {
       new Vector3(this.root.position.x, 0, this.root.position.z),
       new Vector3(point.x, 0, point.z)
     );
-    return dist <= this.radius;
+    // Player monkey must step directly onto the safe portal (within 2.0m)
+    return dist <= 2.0;
   }
 
   private applyVisibility(alphaPct: number): void {
@@ -150,11 +152,11 @@ export class EscapeZone {
         this.currentWaypointIndex = (this.currentWaypointIndex + 1) % this.waypoints.length;
       }
     } else {
-      this.applyVisibility(0.85);
+      this.applyVisibility(0.0);
     }
 
     // Beacon and ring pulse
-    if (this.isPhaseAppeared) {
+    if (this.isActive && this.isPhaseAppeared) {
       const pulse = 0.5 + Math.sin(this.animTimer * 4) * 0.4;
       this.outerPulseRing.scaling.setAll(1.0 + pulse * 0.12);
     }
