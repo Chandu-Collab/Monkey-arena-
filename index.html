@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍌</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grab the Banana 🍌 | Babylon.js 3D Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="renderCanvas"></canvas>
+
+      <!-- SCREEN DAMAGE FLASH EFFECT -->
+      <div id="damageFlash" class="damage-flash"></div>
+
+      <!-- INTRO MISSION OBJECTIVE OVERLAY (Game starts once dismissed) -->
+      <div id="introGoalSplash" class="intro-goal-card">
+        <div class="intro-header-row">
+          <span class="intro-icon">🍌</span>
+          <div class="intro-header-text">
+            <span class="intro-tag">MISSION BRIEFING</span>
+            <h2>GRAB THE GOLDEN BANANA!</h2>
+          </div>
+        </div>
+        <div class="intro-rules-list">
+          <div class="intro-rule-item">
+            <span class="rule-bullet blue">🔵</span>
+            <div class="rule-desc">
+              <strong>Outer Circle (12.5m):</strong> Enemy monkeys throw fish from their hands!
+            </div>
+          </div>
+          <div class="intro-rule-item">
+            <span class="rule-bullet red">🔴</span>
+            <div class="rule-desc">
+              <strong>Inner Circle (4.6m):</strong> Defender monkeys attack! <em>Keep moving</em> so they cannot hit you!
+            </div>
+          </div>
+          <div class="intro-rule-item">
+            <span class="rule-bullet green">🟢</span>
+            <div class="rule-desc">
+              <strong>Escape Home:</strong> Safe home blinks every 2s! Dodge sky-falling fish into ponds and reach it!
+            </div>
+          </div>
+        </div>
+        <div class="intro-footer-row">
+          <button id="introStartBtn" class="intro-start-btn">
+            START MISSION 🍌 (<span id="introTimerText">5s</span>)
+          </button>
+          <div class="intro-timer-wrap">
+            <div id="introTimerBar" class="intro-timer-bar"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- INTERACTIVE PICKUP PROMPT (Floats near bottom when in range) -->
+      <div id="pickupPrompt" class="pickup-prompt hidden">
+        <span class="prompt-icon">🍌</span>
+        <div class="prompt-text">
+          <span class="prompt-main">PRESS <kbd>E</kbd> TO SNATCH</span>
+          <span class="prompt-sub">Golden Banana</span>
+        </div>
+      </div>
+
+      <!-- HUD OVERLAY -->
+      <div id="overlay">
+        <!-- TOP HEADER ROW -->
+        <header class="top-row">
+          <div class="badge">
+            <span class="logo-icon">🍌</span>
+            <div class="title-group">
+              <h1>GRAB THE BANANA</h1>
+              <span class="subtitle">3D Monkey Arena</span>
+            </div>
+          </div>
+
+          <!-- DIFFICULTY MODE SELECTOR PILLS -->
+          <div class="difficulty-pill-group">
+            <button class="diff-btn" data-mode="EASY" title="Slow bombs & slow portal">🟢 EASY</button>
+            <button class="diff-btn active" data-mode="MEDIUM" title="Balanced speed & challenge">🟡 MED</button>
+            <button class="diff-btn" data-mode="HARD" title="Rapid bomb barrage & fast portal">🔴 HARD</button>
+          </div>
+
+          <!-- COMPACT HEADER GOAL BADGE (Always visible, non-blocking) -->
+          <div id="headerGoalBadge" class="header-goal-badge pulse-yellow">
+            <span id="headerGoalIcon" class="goal-icon">🎯</span>
+            <div class="goal-text-group">
+              <span class="goal-label">CURRENT OBJECTIVE</span>
+              <strong id="headerGoalText">Reach Pedestal & Snatch Banana</strong>
+            </div>
+          </div>
+
+          <!-- Lifeline / Health Gauge & Timer -->
+          <div class="top-right-group">
+            <div class="lifeline-container">
+              <div class="lifeline-header">
+                <span class="lifeline-title">❤️ LIFELINE</span>
+                <span id="heartsDisplay" class="hearts-icons">❤️❤️❤️</span>
+              </div>
+              <div class="health-bar-track">
+                <div id="healthFill" class="health-bar-fill"></div>
+              </div>
+            </div>
+
+            <div class="timer-badge">
+              <span class="timer-icon">⏱️</span>
+              <span id="timerText">00:00</span>
+            </div>
+          </div>
+        </header>
+
+        <!-- BOTTOM CONTROLS & STAMINA -->
+        <footer class="bottom-row">
+          <!-- Sprint Stamina Bar -->
+          <div class="stamina-container">
+            <div class="stamina-label">
+              <span>⚡ STAMINA (SHIFT)</span>
+              <span class="stamina-hint">🏃 Moving makes you invincible!</span>
+            </div>
+            <div class="stamina-bar-track">
+              <div id="staminaFill" class="stamina-bar-fill"></div>
+            </div>
+          </div>
+
+          <!-- Controls Guide -->
+          <div class="controls-hint">
+            <p>
+              <span class="key-badge">W</span> Forward | 
+              <span class="key-badge">S</span> Back | 
+              <span class="key-badge">A</span> Left | 
+              <span class="key-badge">D</span> Right | 
+              <span class="key-badge">SPACE</span> Jump | 
+              <span class="key-badge">SHIFT</span> Sprint | 
+              <span class="key-badge">E</span> Grab
+            </p>
+          </div>
+        </footer>
+      </div>
+
+      <!-- GAME OVER / VICTORY MODAL -->
+      <div id="gameModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+          <h2 id="modalTitle">🏆 YOU ESCAPED!</h2>
+          <div id="modalBody" class="modal-content">
+            <!-- Dynamic stats populated by GameUI -->
+          </div>
+          <button id="modalBtn" class="primary-btn">PLAY AGAIN 🍌</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
